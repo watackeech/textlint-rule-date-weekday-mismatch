@@ -58,16 +58,25 @@ const detectLang = (tags, preferLang) => {
  * @returns {string}
  */
 const addYearToDateText = (dateText, year, lang) => {
+    const isJapanese = lang === "ja" || lang === "ja-JP";
+    const isSlashDate = /^[0-9]{1,2}\/[0-9]{1,2}/.test(dateText)
+    const isDashDate = /^[0-9]{1,2}-[0-9]{1,2}/.test(dateText)
+
+    // Slash: 4/23(月) → 2024/4/23(月), 4/23(Mon) → 2024/4/23(Mon)
+    if (isSlashDate) {
+        if (isJapanese) {
+            const [month, dayRest] = dateText.split("/");
+            return `${year}年${parseInt(month, 10)}月${dayRest.replace(/([0-9]{1,2})/, (d) => parseInt(d, 10) + "日")}`;
+        } else {
+            return `${year}/${dateText}`;
+        }
+    }
     // Japanese: 4月23日(月) → 2024年4月23日(月)
-    if (lang === "ja") {
+    if (isJapanese) {
         return `${year}年${dateText}`;
     }
-    // Slash: 4/23(月) → 2024/4/23(月)
-    if (/^[0-9]{1,2}\/[0-9]{1,2}/.test(dateText)) {
-        return `${year}/${dateText}`;
-    }
     // Dash: 4-23(Mon) → 2024-4-23(Mon)
-    if (/^[0-9]{1,2}-[0-9]{1,2}/.test(dateText)) {
+    if (isDashDate) {
         return `${year}-${dateText}`;
     }
     // Default: prepend year and a space
@@ -191,8 +200,10 @@ function reporter(context, config = {}) {
                             [paddingIndex, paddingIndex + maybeWeekdayText.length],
                             expectedWeekday
                         );
+                        // Adjust index for Japanese slash date format like "4/23(金)"
+                        const isSlashJa = /[0-9]{1,2}\/[0-9]{1,2}[\(（][^)）]+[\)）]/.test(actualTextAll) && (lang === "ja" || lang === "ja-JP");
                         report(node, new RuleError(`${actualTextAll} mismatch weekday.\n${actualTextAll} => ${chronoDate.text}${pairStartSymbol}${expectedWeekday}${pairEndSymbol}`, {
-                            index: paddingIndex,
+                            index: isSlashJa ? paddingIndex + 1 : paddingIndex,
                             fix
                         }));
                     }
